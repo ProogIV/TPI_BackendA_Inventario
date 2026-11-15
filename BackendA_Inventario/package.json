@@ -1,0 +1,15 @@
+{
+  "name": "backenda_inventario",
+  "version": "1.0.0",
+  "description": "",
+  "author": "Equipo 12",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "nodemon index.js"
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "nodemon": "^3.1.11"
+  }
+}
