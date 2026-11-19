@@ -1,0 +1,54 @@
+﻿@baseUrl = http://localhost:3000/api
+@proveedorId = Pegar_Aqui_El_ID_Del_Proveedor
+@productoId = Pegar_Aqui_El_ID_Del_Producto
+
+### 1. Health Check
+GET {{baseUrl}}/health
+
+### 2. Crear Proveedor
+POST {{baseUrl}}/proveedores
+Content-Type: application/json
+
+{
+  "razonSocial": "DISTRIBUIDORA NEA HARDWARE S.R.L.",
+  "cuit": "30712345678",
+  "contacto": {
+    "email": "ventas@neahardware.com.ar",
+    "telefono": "3777456789"
+  },
+  "categoria": "HARDWARE"
+}
+
+### 3. Listar Proveedores (Paginacion y filtro)
+GET {{baseUrl}}/proveedores?page=1&limit=10&search=NEA
+
+### 4. Crear Producto
+POST {{baseUrl}}/productos
+Content-Type: application/json
+
+{
+  "codigoSKU": "GPU-560",
+  "nombre": "Placa de Video Radeon RX 560 4GB",
+  "descripcion": "Placa grafica GDDR5",
+  "precio": 185000,
+  "stock": 15,
+  "especificaciones": {
+    "memoria": "4GB GDDR5",
+    "consumo": "80W"
+  },
+  "proveedor": "{{proveedorId}}"
+}
+
+### 5. Listar Productos (Paginacion y busqueda)
+GET {{baseUrl}}/productos?page=1&limit=10&search=Radeon
+
+### 6. Detalle de Producto + Integracion con Django (Respuesta degradada si Django esta apagado)
+GET {{baseUrl}}/productos/{{productoId}}
+
+### 7. Descontar Stock
+PATCH {{baseUrl}}/productos/{{productoId}}/descontar-stock
+Content-Type: application/json
+
+{
+  "cantidad": 2
+}
