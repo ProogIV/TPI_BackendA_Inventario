@@ -1,8 +1,19 @@
 import { ProductoRepository } from '../repositories/producto.repository.js';
+import { ProveedorRepository } from '../repositories/proveedor.repository.js';
+
+const TIMEOUT_SERVICIOS_MS = 5000; // spec.md, regla 7
+
+const esCantidadValida = (cantidad) => Number.isInteger(cantidad) && cantidad > 0;
 
 export const crearProducto = async (req, res, next) => {
     try {
-        const creado = await ProductoRepository.crear(req.body);
+        // Regla 4 del spec: el proveedor tiene que existir y estar activo
+        const { activo, ...datos } = req.body ?? {};
+        if (datos.proveedor && !(await ProveedorRepository.existeActivo(datos.proveedor))) {
+            return res.status(400).json({ error: true, mensaje: 'El proveedor indicado no existe o está inactivo' });
+        }
+
+        const creado = await ProductoRepository.crear(datos);
         res.status(201).json(creado);
     } catch (error) {
         next(error);
@@ -23,7 +34,7 @@ export const listarProductos = async (req, res, next) => {
     }
 };
 
-// INTEGRACIÓN TP 1: Node consume a Django con timeout y respuesta degradada
+// Integración con Pedidos: timeout y respuesta degradada (spec.md 4.1)
 export const obtenerFichaCompletaProducto = async (req, res, next) => {
     try {
         const producto = await ProductoRepository.obtenerPorId(req.params.id);
@@ -31,33 +42,32 @@ export const obtenerFichaCompletaProducto = async (req, res, next) => {
             return res.status(404).json({ error: true, mensaje: 'Producto no encontrado' });
         }
 
-        let historialPedidosDjango = null;
+        let pedidosRecientes = [];
         let estadoIntegracion = 'OK';
 
         try {
-            // Llamada Server-to-Server hacia Django con timeout máximo de 3 segundos (3000 ms)
-            const urlDjango = `${process.env.DJANGO_API_URL}/orders/?product_id=${producto._id}`;
-            const respuesta = await fetch(urlDjango, {
-                signal: AbortSignal.timeout(3000)
+            // Llamada servidor a servidor hacia Pedidos, con tiempo máximo de espera
+            const urlPedidos = `${process.env.PEDIDOS_API_URL}/orders/?producto_id=${producto._id}`;
+            const respuesta = await fetch(urlPedidos, {
+                signal: AbortSignal.timeout(TIMEOUT_SERVICIOS_MS)
             });
 
             if (!respuesta.ok) {
-                throw new Error(`Django respondió con status ${respuesta.status}`);
+                throw new Error(`Pedidos respondió con status ${respuesta.status}`);
             }
 
-            historialPedidosDjango = await respuesta.json();
+            pedidosRecientes = await respuesta.json();
         } catch (errorRed) {
-            // RESPUESTA DEGRADADA: Si Django está apagado o tarda mucho, no rompemos la API de Node.
+            // RESPUESTA DEGRADADA: si Pedidos está apagado o tarda, no rompemos esta API.
             // Entregamos igual el producto de MongoDB e informamos la degradación.
-            estadoIntegracion = 'DEGRADADO: El servicio de Pedidos (Django) no está disponible temporalmente';
-            historialPedidosDjango = [];
+            estadoIntegracion = 'DEGRADADO: el servicio de Pedidos no está disponible temporalmente';
         }
 
         res.status(200).json({
             producto,
             integracionPedidos: {
                 estado: estadoIntegracion,
-                pedidosRecientes: historialPedidosDjango
+                pedidosRecientes
             }
         });
     } catch (error) {
@@ -65,11 +75,30 @@ export const obtenerFichaCompletaProducto = async (req, res, next) => {
     }
 };
 
+export const actualizarProducto = async (req, res, next) => {
+    try {
+        // 'activo' no se modifica por PUT: las bajas van por DELETE (borrado lógico)
+        const { activo, ...datos } = req.body ?? {};
+
+        if (datos.proveedor && !(await ProveedorRepository.existeActivo(datos.proveedor))) {
+            return res.status(400).json({ error: true, mensaje: 'El proveedor indicado no existe o está inactivo' });
+        }
+
+        const actualizado = await ProductoRepository.actualizar(req.params.id, datos);
+        if (!actualizado) {
+            return res.status(404).json({ error: true, mensaje: 'Producto no encontrado' });
+        }
+        res.status(200).json(actualizado);
+    } catch (error) {
+        next(error);
+    }
+};
+
 export const descontarStockProducto = async (req, res, next) => {
     try {
-        const { cantidad } = req.body;
-        if (!cantidad || cantidad <= 0) {
-            return res.status(400).json({ error: true, mensaje: 'La cantidad debe ser mayor a 0' });
+        const { cantidad } = req.body ?? {};
+        if (!esCantidadValida(cantidad)) {
+            return res.status(400).json({ error: true, mensaje: 'La cantidad debe ser un número entero mayor a 0' });
         }
 
         const resultado = await ProductoRepository.descontarStock(req.params.id, cantidad);
@@ -85,6 +114,23 @@ export const descontarStockProducto = async (req, res, next) => {
         }
 
         res.status(200).json(resultado.producto);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const reponerStockProducto = async (req, res, next) => {
+    try {
+        const { cantidad } = req.body ?? {};
+        if (!esCantidadValida(cantidad)) {
+            return res.status(400).json({ error: true, mensaje: 'La cantidad debe ser un número entero mayor a 0' });
+        }
+
+        const producto = await ProductoRepository.reponerStock(req.params.id, cantidad);
+        if (!producto) {
+            return res.status(404).json({ error: true, mensaje: 'Producto no encontrado' });
+        }
+        res.status(200).json(producto);
     } catch (error) {
         next(error);
     }

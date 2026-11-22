@@ -6,6 +6,7 @@ const productoSchema = new mongoose.Schema({
         required: [true, 'El código SKU es obligatorio'],
         unique: true,
         uppercase: true,
+        trim: true,
         match: [/^[A-Z]{3}-\d{3}$/, 'El formato del SKU debe ser 3 letras, guion y 3 números (Ej: TEC-001)']
     },
     nombre: {
@@ -25,7 +26,11 @@ const productoSchema = new mongoose.Schema({
     stock: {
         type: Number,
         required: [true, 'El stock inicial es obligatorio'],
-        min: [0, 'El stock no puede ser negativo']
+        min: [0, 'El stock no puede ser negativo'],
+        validate: {
+            validator: Number.isInteger,
+            message: 'El stock debe ser un número entero'
+        }
     },
     especificaciones: {
         type: Map,
@@ -43,7 +48,7 @@ const productoSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-// Índice de texto para permitir la búsqueda por palabras en nombre y descripción (Requisito TP 1)
+// Índice de texto para la búsqueda por palabras en nombre y descripción
 productoSchema.index({ nombre: 'text', descripcion: 'text' });
 
 export const Producto = mongoose.model('Producto', productoSchema);

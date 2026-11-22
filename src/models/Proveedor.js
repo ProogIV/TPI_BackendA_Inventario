@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 
+export const CATEGORIAS = ['HARDWARE', 'SOFTWARE', 'INSUMOS', 'SERVICIOS'];
+
 const proveedorSchema = new mongoose.Schema({
     razonSocial: {
         type: String,
@@ -17,16 +19,22 @@ const proveedorSchema = new mongoose.Schema({
         email: {
             type: String,
             required: [true, 'El email de contacto es obligatorio'],
-            lowercase: true
+            lowercase: true,
+            trim: true
         },
         telefono: String
     },
-    categoria: {
-        type: String,
-        required: true,
-        enum: {
-            values: ['HARDWARE', 'SOFTWARE', 'INSUMOS', 'SERVICIOS'],
-            message: 'Categoría no válida'
+    categorias: {
+        type: [{
+            type: String,
+            enum: {
+                values: CATEGORIAS,
+                message: 'Categoría no válida: {VALUE}'
+            }
+        }],
+        validate: {
+            validator: (lista) => Array.isArray(lista) && lista.length > 0,
+            message: 'El proveedor debe tener al menos una categoría'
         }
     },
     activo: {
@@ -35,7 +43,7 @@ const proveedorSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-// Índice para acelerar búsquedas por categoría y estado activo (Requisito TP 1)
-proveedorSchema.index({ categoria: 1, activo: 1 });
+// Índice para acelerar búsquedas por categoría y estado activo
+proveedorSchema.index({ categorias: 1, activo: 1 });
 
 export const Proveedor = mongoose.model('Proveedor', proveedorSchema);

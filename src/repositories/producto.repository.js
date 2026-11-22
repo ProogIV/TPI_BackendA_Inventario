@@ -1,5 +1,8 @@
 import { Producto } from '../models/Producto.js';
 
+// Campos que se devuelven al descontar o reponer stock (contrato con Pedidos, spec.md 4.1)
+const CAMPOS_STOCK = 'nombre precio stock';
+
 export class ProductoRepository {
     static async crear(datos) {
         const nuevo = new Producto(datos);
@@ -9,7 +12,7 @@ export class ProductoRepository {
     static async obtenerTodos({ pagina = 1, limite = 10, buscar = '' }) {
         const filtro = { activo: true };
 
-        // Búsqueda por texto parcial en nombre o descripción (Requisito TP 1)
+        // Búsqueda por texto parcial en nombre o descripción
         if (buscar) {
             filtro.$or = [
                 { nombre: { $regex: buscar, $options: 'i' } },
@@ -22,7 +25,7 @@ export class ProductoRepository {
 
         const [datos, total] = await Promise.all([
             Producto.find(filtro)
-                .populate('proveedor', 'razonSocial cuit categoria')
+                .populate('proveedor', 'razonSocial cuit')
                 .skip(salto)
                 .limit(Number(limite))
                 .sort({ createdAt: -1 }),
@@ -43,20 +46,45 @@ export class ProductoRepository {
     }
 
     static async actualizar(id, datos) {
-        return await Producto.findByIdAndUpdate(id, datos, { new: true, runValidators: true });
+        return await Producto.findOneAndUpdate(
+            { _id: id, activo: true },
+            datos,
+            { returnDocument: 'after', runValidators: true }
+        );
     }
 
     static async descontarStock(id, cantidad) {
-        const producto = await Producto.findOne({ _id: id, activo: true });
-        if (!producto) return { error: 'NO_ENCONTRADO' };
-        if (producto.stock < cantidad) return { error: 'STOCK_INSUFICIENTE', stockActual: producto.stock };
+        // Operación ATÓMICA: la condición (stock >= cantidad) y el descuento ($inc) se ejecutan
+        // en una sola instrucción de MongoDB. Si dos pedidos llegan al mismo tiempo, MongoDB los
+        // aplica de a uno y el stock nunca queda negativo (spec.md, regla 2).
+        const actualizado = await Producto.findOneAndUpdate(
+            { _id: id, activo: true, stock: { $gte: cantidad } },
+            { $inc: { stock: -cantidad } },
+            { returnDocument: 'after' }
+        ).select(CAMPOS_STOCK);
 
-        producto.stock -= Number(cantidad);
-        await producto.save();
-        return { producto };
+        if (actualizado) return { producto: actualizado };
+
+        // No se actualizó: averiguamos si fue porque no existe o porque no alcanza el stock
+        const existente = await Producto.findOne({ _id: id, activo: true }).select('stock');
+        if (!existente) return { error: 'NO_ENCONTRADO' };
+        return { error: 'STOCK_INSUFICIENTE', stockActual: existente.stock };
+    }
+
+    static async reponerStock(id, cantidad) {
+        // Compensación: devuelve el stock de un pedido cuyo pago falló (spec.md, sección 5)
+        return await Producto.findOneAndUpdate(
+            { _id: id, activo: true },
+            { $inc: { stock: cantidad } },
+            { returnDocument: 'after' }
+        ).select(CAMPOS_STOCK);
     }
 
     static async eliminarLogico(id) {
-        return await Producto.findByIdAndUpdate(id, { activo: false }, { new: true });
+        return await Producto.findOneAndUpdate(
+            { _id: id, activo: true },
+            { activo: false },
+            { returnDocument: 'after' }
+        );
     }
 }

@@ -16,13 +16,24 @@ Content-Type: application/json
     "email": "ventas@neahardware.com.ar",
     "telefono": "3777456789"
   },
-  "categoria": "HARDWARE"
+  "categorias": ["HARDWARE", "INSUMOS"]
 }
 
-### 3. Listar Proveedores (Paginacion y filtro)
+### 3. Listar Proveedores (paginación y filtro)
 GET {{baseUrl}}/proveedores?page=1&limit=10&search=NEA
 
-### 4. Crear Producto
+### 4. Ver un Proveedor
+GET {{baseUrl}}/proveedores/{{proveedorId}}
+
+### 5. Modificar Proveedor
+PUT {{baseUrl}}/proveedores/{{proveedorId}}
+Content-Type: application/json
+
+{
+  "contacto": { "email": "compras@neahardware.com.ar" }
+}
+
+### 6. Crear Producto
 POST {{baseUrl}}/productos
 Content-Type: application/json
 
@@ -39,16 +50,46 @@ Content-Type: application/json
   "proveedor": "{{proveedorId}}"
 }
 
-### 5. Listar Productos (Paginacion y busqueda)
+### 7. Listar Productos (paginación y búsqueda)
 GET {{baseUrl}}/productos?page=1&limit=10&search=Radeon
 
-### 6. Detalle de Producto + Integracion con Django (Respuesta degradada si Django esta apagado)
+### 8. Detalle de Producto + integración con Pedidos (degradada si Pedidos está apagado)
 GET {{baseUrl}}/productos/{{productoId}}
 
-### 7. Descontar Stock
-PATCH {{baseUrl}}/productos/{{productoId}}/descontar-stock
+### 9. Modificar Producto
+PUT {{baseUrl}}/productos/{{productoId}}
+Content-Type: application/json
+
+{
+  "precio": 179000
+}
+
+### 10. Descontar Stock (uso interno de Pedidos)
+PATCH {{baseUrl}}/productos/{{productoId}}/descontar
 Content-Type: application/json
 
 {
   "cantidad": 2
 }
+
+### 11. Descontar más stock del disponible -> 400 "Stock insuficiente"
+PATCH {{baseUrl}}/productos/{{productoId}}/descontar
+Content-Type: application/json
+
+{
+  "cantidad": 9999
+}
+
+### 12. Reponer Stock (compensación de un pago fallido)
+PATCH {{baseUrl}}/productos/{{productoId}}/reponer
+Content-Type: application/json
+
+{
+  "cantidad": 2
+}
+
+### 13. Baja lógica de Producto
+DELETE {{baseUrl}}/productos/{{productoId}}
+
+### 14. Baja lógica de Proveedor
+DELETE {{baseUrl}}/proveedores/{{proveedorId}}

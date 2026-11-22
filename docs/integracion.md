@@ -1,21 +1,31 @@
-﻿# Contrato de Integracion entre Servicios (TP 1)
+﻿# Contrato de integración con Pedidos
 
-## 1. Flujo de Comunicacion
-* **Consumidor:** backend-node (Express + Mongoose, puerto 3000)
-* **Proveedor:** backend-django (Django + DRF, puerto 8000)
-* **Endpoint en Node:** GET /api/productos/:id
-* **Peticion saliente hacia Django:** GET http://127.0.0.1:8000/api/orders/?product_id=:id
-* **Timeout configurado:** 3000 ms (AbortSignal.timeout(3000))
+La especificación completa está en el `spec.md` del repositorio orquestador
+([TPI_Ecommerce](https://github.com/ProogIV/TPI_Ecommerce)). Este archivo resume los puntos donde
+Inventario se comunica con Pedidos.
 
-## 2. Manejo de Fallos y Respuesta Degradada
-Si backend-django no responde dentro de los 3000 ms o se encuentra apagado, backend-node captura el error y responde con codigo 200 OK devolviendo los datos locales del producto desde MongoDB junto con el estado degradado:
+## 1. Pedidos consume a Inventario (flujo de compra)
 
-`json
+| Endpoint | Uso |
+|---|---|
+| `PATCH /api/productos/:id/descontar` `{ "cantidad": N }` | Descuenta stock de forma atómica. `200` con `{ _id, nombre, precio, stock }`; `400` si no alcanza; `404` si no existe |
+| `PATCH /api/productos/:id/reponer` `{ "cantidad": N }` | Devuelve el stock cuando el pago del pedido falla (compensación) |
+
+## 2. Inventario consume a Pedidos (respuesta degradada)
+
+* **Endpoint en Inventario:** `GET /api/productos/:id`
+* **Petición saliente:** `GET {PEDIDOS_API_URL}/orders/?producto_id=:id`
+* **Timeout:** 5000 ms (`AbortSignal.timeout(5000)`)
+
+Si Pedidos no responde dentro del tiempo o está apagado, Inventario igual responde `200` con los
+datos del producto y el estado degradado:
+
+```json
 {
   "producto": { "codigoSKU": "GPU-560", "stock": 15 },
   "integracionPedidos": {
-    "estado": "DEGRADADO: El servicio de Pedidos (Django) no esta disponible temporalmente",
+    "estado": "DEGRADADO: el servicio de Pedidos no está disponible temporalmente",
     "pedidosRecientes": []
   }
 }
-
+```

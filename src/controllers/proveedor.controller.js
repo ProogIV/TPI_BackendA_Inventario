@@ -2,7 +2,8 @@ import { ProveedorRepository } from '../repositories/proveedor.repository.js';
 
 export const crearProveedor = async (req, res, next) => {
     try {
-        const creado = await ProveedorRepository.crear(req.body);
+        const { activo, ...datos } = req.body ?? {};
+        const creado = await ProveedorRepository.crear(datos);
         res.status(201).json(creado);
     } catch (error) {
         next(error);
@@ -37,7 +38,9 @@ export const obtenerProveedor = async (req, res, next) => {
 
 export const actualizarProveedor = async (req, res, next) => {
     try {
-        const actualizado = await ProveedorRepository.actualizar(req.params.id, req.body);
+        // 'activo' no se modifica por PUT: las bajas van por DELETE (borrado lógico)
+        const { activo, ...datos } = req.body ?? {};
+        const actualizado = await ProveedorRepository.actualizar(req.params.id, datos);
         if (!actualizado) {
             return res.status(404).json({ error: true, mensaje: 'Proveedor no encontrado' });
         }

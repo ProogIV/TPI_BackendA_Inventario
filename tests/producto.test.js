@@ -1,105 +1,178 @@
-import 'dotenv/config';
 import request from 'supertest';
-import mongoose from 'mongoose';
 import app from '../src/app.js';
 import { Producto } from '../src/models/Producto.js';
 import { Proveedor } from '../src/models/Proveedor.js';
+import { conectarBDTest, desconectarBDTest } from './helpers/db.js';
 
-beforeAll(async () => {
-    if (mongoose.connection.readyState === 0) {
-        await mongoose.connect(process.env.MONGO_URI);
-    }
-}, 30000); // <-- 30 segundos de margen para conectar a MongoDB Atlas
+beforeAll(conectarBDTest, 30000);
+afterAll(desconectarBDTest, 30000);
 
-afterAll(async () => {
-    await mongoose.connection.close();
-}, 30000);
-
-describe('Pruebas de Reglas de Negocio - Backend Node (Inventario)', () => {
-
+describe('Productos y stock - reglas de negocio (spec.md)', () => {
     let proveedorId;
+
+    const crearProductoEnBD = (datos = {}) => Producto.create({
+        codigoSKU: 'DIS-002',
+        nombre: 'Disco SSD 480GB',
+        precio: 60000,
+        stock: 10,
+        proveedor: proveedorId,
+        ...datos
+    });
 
     beforeEach(async () => {
         await Producto.deleteMany({});
         await Proveedor.deleteMany({});
 
-        const proveedorProvisorio = await Proveedor.create({
+        const proveedor = await Proveedor.create({
             razonSocial: 'TEST PROVEEDOR S.A.',
             cuit: '20333444551',
             contacto: { email: 'test@proveedor.com', telefono: '3777123456' },
-            categoria: 'HARDWARE'
+            categorias: ['HARDWARE']
         });
-        proveedorId = proveedorProvisorio._id;
-    }, 30000);
+        proveedorId = proveedor._id;
+    });
 
-    test('1. Debe rechazar la creación de un producto con SKU inválido (Regla de Formato SKU)', async () => {
-        const productoInvalido = {
+    test('rechaza un producto con SKU inválido (400 con formato uniforme)', async () => {
+        const respuesta = await request(app).post('/api/productos').send({
             codigoSKU: 'INVALIDO',
             nombre: 'Placa de Video',
             precio: 150000,
             stock: 10,
             proveedor: proveedorId
-        };
-
-        const respuesta = await request(app)
-            .post('/api/productos')
-            .send(productoInvalido);
+        });
 
         expect(respuesta.status).toBe(400);
         expect(respuesta.body.error).toBe(true);
-    }, 15000);
+        expect(respuesta.body.mensaje).toBeDefined();
+    });
 
-    test('2. Debe crear un producto correctamente si cumple todas las validaciones', async () => {
-        const productoValido = {
-            codigoSKU: 'TEC-001',
+    test('crea un producto válido', async () => {
+        const respuesta = await request(app).post('/api/productos').send({
+            codigoSKU: 'tec-001',
             nombre: 'Memoria RAM 8GB',
             precio: 45000,
             stock: 20,
             proveedor: proveedorId
-        };
-
-        const respuesta = await request(app)
-            .post('/api/productos')
-            .send(productoValido);
+        });
 
         expect(respuesta.status).toBe(201);
         expect(respuesta.body.codigoSKU).toBe('TEC-001');
         expect(respuesta.body.stock).toBe(20);
-    }, 15000);
+    });
 
-    test('3. Debe rechazar el descuento de stock si la cantidad solicitada supera al stock disponible', async () => {
-        const producto = await Producto.create({
-            codigoSKU: 'DIS-002',
-            nombre: 'Disco SSD 480GB',
-            precio: 60000,
+    test('regla 4: rechaza un producto con proveedor inactivo', async () => {
+        await Proveedor.findByIdAndUpdate(proveedorId, { activo: false });
+
+        const respuesta = await request(app).post('/api/productos').send({
+            codigoSKU: 'TEC-002',
+            nombre: 'Teclado',
+            precio: 20000,
             stock: 5,
             proveedor: proveedorId
         });
 
+        expect(respuesta.status).toBe(400);
+        expect(respuesta.body.mensaje).toContain('proveedor');
+    });
+
+    test('regla 1: rechaza el descuento si no alcanza el stock', async () => {
+        const producto = await crearProductoEnBD({ stock: 5 });
+
         const respuesta = await request(app)
-            .patch(`/api/productos/${producto._id}/descontar-stock`)
+            .patch(`/api/productos/${producto._id}/descontar`)
             .send({ cantidad: 10 });
 
         expect(respuesta.status).toBe(400);
         expect(respuesta.body.error).toBe(true);
         expect(respuesta.body.mensaje).toContain('Stock insuficiente');
-    }, 15000);
+    });
 
-    test('4. Debe descontar stock con éxito y actualizar la base de datos si hay disponibilidad', async () => {
-        const producto = await Producto.create({
-            codigoSKU: 'PRO-003',
-            nombre: 'Procesador Intel',
-            precio: 200000,
-            stock: 10,
-            proveedor: proveedorId
-        });
+    test('descuenta stock y devuelve el precio unitario', async () => {
+        const producto = await crearProductoEnBD({ stock: 10, precio: 200000 });
 
         const respuesta = await request(app)
-            .patch(`/api/productos/${producto._id}/descontar-stock`)
+            .patch(`/api/productos/${producto._id}/descontar`)
             .send({ cantidad: 3 });
 
         expect(respuesta.status).toBe(200);
         expect(respuesta.body.stock).toBe(7);
-    }, 15000);
+        expect(respuesta.body.precio).toBe(200000);
+    });
 
+    test('rechaza cantidades que no son enteros positivos', async () => {
+        const producto = await crearProductoEnBD();
+
+        for (const cantidad of [0, -2, 1.5, '3']) {
+            const respuesta = await request(app)
+                .patch(`/api/productos/${producto._id}/descontar`)
+                .send({ cantidad });
+            expect(respuesta.status).toBe(400);
+        }
+    });
+
+    test('regla 2: dos descuentos simultáneos nunca dejan stock negativo', async () => {
+        const producto = await crearProductoEnBD({ stock: 10 });
+        const url = `/api/productos/${producto._id}/descontar`;
+
+        // Dos pedidos de 6 unidades al mismo tiempo: solo uno puede concretarse
+        const respuestas = await Promise.all([
+            request(app).patch(url).send({ cantidad: 6 }),
+            request(app).patch(url).send({ cantidad: 6 })
+        ]);
+
+        const codigos = respuestas.map(r => r.status).sort();
+        expect(codigos).toEqual([200, 400]);
+
+        const enBD = await Producto.findById(producto._id);
+        expect(enBD.stock).toBe(4);
+    });
+
+    test('repone stock (compensación de un pago fallido)', async () => {
+        const producto = await crearProductoEnBD({ stock: 4 });
+
+        const respuesta = await request(app)
+            .patch(`/api/productos/${producto._id}/reponer`)
+            .send({ cantidad: 6 });
+
+        expect(respuesta.status).toBe(200);
+        expect(respuesta.body.stock).toBe(10);
+    });
+
+    test('regla 3: el borrado es lógico y el producto deja de listarse', async () => {
+        const producto = await crearProductoEnBD();
+
+        const baja = await request(app).delete(`/api/productos/${producto._id}`);
+        expect(baja.status).toBe(200);
+
+        const enBD = await Producto.findById(producto._id);
+        expect(enBD).not.toBeNull();
+        expect(enBD.activo).toBe(false);
+
+        const listado = await request(app).get('/api/productos');
+        expect(listado.body.total).toBe(0);
+
+        const descuento = await request(app)
+            .patch(`/api/productos/${producto._id}/descontar`)
+            .send({ cantidad: 1 });
+        expect(descuento.status).toBe(404);
+    });
+
+    test('GET de un producto responde degradado si Pedidos no está disponible', async () => {
+        const anterior = process.env.PEDIDOS_API_URL;
+        process.env.PEDIDOS_API_URL = 'http://127.0.0.1:9/api'; // puerto donde no hay nada
+        const producto = await crearProductoEnBD();
+
+        const respuesta = await request(app).get(`/api/productos/${producto._id}`);
+        process.env.PEDIDOS_API_URL = anterior;
+
+        expect(respuesta.status).toBe(200);
+        expect(respuesta.body.producto.codigoSKU).toBe('DIS-002');
+        expect(respuesta.body.integracionPedidos.estado).toContain('DEGRADADO');
+    });
+
+    test('una ruta inexistente responde 404 con el formato uniforme', async () => {
+        const respuesta = await request(app).get('/api/no-existe');
+        expect(respuesta.status).toBe(404);
+        expect(respuesta.body.error).toBe(true);
+    });
 });

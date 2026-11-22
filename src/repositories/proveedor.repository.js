@@ -9,7 +9,7 @@ export class ProveedorRepository {
     static async obtenerTodos({ pagina = 1, limite = 10, buscar = '' }) {
         const filtro = { activo: true };
 
-        // Si el usuario envía texto en ?buscar=..., filtramos por razón social sin importar mayúsculas ('i')
+        // ?search=... filtra por razón social sin distinguir mayúsculas ('i')
         if (buscar) {
             filtro.razonSocial = { $regex: buscar, $options: 'i' };
         }
@@ -33,12 +33,26 @@ export class ProveedorRepository {
         return await Proveedor.findOne({ _id: id, activo: true });
     }
 
+    static async existeActivo(id) {
+        if (!id) return null; // sin id no hay nada que buscar (lo rechaza la validación del esquema)
+        return await Proveedor.exists({ _id: id, activo: true });
+    }
+
     static async actualizar(id, datos) {
-        return await Proveedor.findByIdAndUpdate(id, datos, { new: true, runValidators: true });
+        // Solo se modifican proveedores activos; runValidators aplica las reglas del esquema
+        return await Proveedor.findOneAndUpdate(
+            { _id: id, activo: true },
+            datos,
+            { returnDocument: 'after', runValidators: true }
+        );
     }
 
     static async eliminarLogico(id) {
         // Borrado lógico (Soft Delete): pasa activo a false sin destruir el registro
-        return await Proveedor.findByIdAndUpdate(id, { activo: false }, { new: true });
+        return await Proveedor.findOneAndUpdate(
+            { _id: id, activo: true },
+            { activo: false },
+            { returnDocument: 'after' }
+        );
     }
 }
