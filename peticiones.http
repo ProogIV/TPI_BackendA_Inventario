@@ -1,0 +1,95 @@
+﻿@baseUrl = http://localhost:3000/api
+@proveedorId = Pegar_Aqui_El_ID_Del_Proveedor
+@productoId = Pegar_Aqui_El_ID_Del_Producto
+
+### 1. Health Check
+GET {{baseUrl}}/health
+
+### 2. Crear Proveedor
+POST {{baseUrl}}/proveedores
+Content-Type: application/json
+
+{
+  "razonSocial": "DISTRIBUIDORA NEA HARDWARE S.R.L.",
+  "cuit": "30712345678",
+  "contacto": {
+    "email": "ventas@neahardware.com.ar",
+    "telefono": "3777456789"
+  },
+  "categorias": ["HARDWARE", "INSUMOS"]
+}
+
+### 3. Listar Proveedores (paginación y filtro)
+GET {{baseUrl}}/proveedores?page=1&limit=10&search=NEA
+
+### 4. Ver un Proveedor
+GET {{baseUrl}}/proveedores/{{proveedorId}}
+
+### 5. Modificar Proveedor
+PUT {{baseUrl}}/proveedores/{{proveedorId}}
+Content-Type: application/json
+
+{
+  "contacto": { "email": "compras@neahardware.com.ar" }
+}
+
+### 6. Crear Producto
+POST {{baseUrl}}/productos
+Content-Type: application/json
+
+{
+  "codigoSKU": "GPU-560",
+  "nombre": "Placa de Video Radeon RX 560 4GB",
+  "descripcion": "Placa grafica GDDR5",
+  "precio": 185000,
+  "stock": 15,
+  "especificaciones": {
+    "memoria": "4GB GDDR5",
+    "consumo": "80W"
+  },
+  "proveedor": "{{proveedorId}}"
+}
+
+### 7. Listar Productos (paginación y búsqueda)
+GET {{baseUrl}}/productos?page=1&limit=10&search=Radeon
+
+### 8. Detalle de Producto + integración con Pedidos (degradada si Pedidos está apagado)
+GET {{baseUrl}}/productos/{{productoId}}
+
+### 9. Modificar Producto
+PUT {{baseUrl}}/productos/{{productoId}}
+Content-Type: application/json
+
+{
+  "precio": 179000
+}
+
+### 10. Descontar Stock (uso interno de Pedidos)
+PATCH {{baseUrl}}/productos/{{productoId}}/descontar
+Content-Type: application/json
+
+{
+  "cantidad": 2
+}
+
+### 11. Descontar más stock del disponible -> 400 "Stock insuficiente"
+PATCH {{baseUrl}}/productos/{{productoId}}/descontar
+Content-Type: application/json
+
+{
+  "cantidad": 9999
+}
+
+### 12. Reponer Stock (compensación de un pago fallido)
+PATCH {{baseUrl}}/productos/{{productoId}}/reponer
+Content-Type: application/json
+
+{
+  "cantidad": 2
+}
+
+### 13. Baja lógica de Producto
+DELETE {{baseUrl}}/productos/{{productoId}}
+
+### 14. Baja lógica de Proveedor
+DELETE {{baseUrl}}/proveedores/{{proveedorId}}

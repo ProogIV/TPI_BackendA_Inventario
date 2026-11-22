@@ -1,15 +1,27 @@
 {
-  "name": "backenda_inventario",
+  "name": "tpi-inventario",
   "version": "1.0.0",
-  "description": "",
-  "author": "Equipo 12",
-  "type": "module",
+  "description": "TPI Programación IV - Microservicio de Inventario (productos, proveedores y stock)",
   "main": "index.js",
   "scripts": {
-    "test": "nodemon index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand"
   },
+  "keywords": [],
+  "author": "Equipo 12",
+  "license": "ISC",
+  "type": "module",
   "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.10",
     "express": "^5.3.0",
-    "nodemon": "^3.1.11"
+    "mongoose": "^9.12.1",
+    "morgan": "^1.12.1"
+  },
+  "devDependencies": {
+    "jest": "^30.5.2",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.3.2"
   }
 }
