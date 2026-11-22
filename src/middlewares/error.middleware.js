@@ -8,7 +8,10 @@ export const rutaNoEncontrada = (req, res) => {
 };
 
 export const manejadorErrores = (err, req, res, next) => {
-    console.error(`[⚠️ Error]: ${err.message}`);
+    // En los tests los errores son esperados (se prueban datos inválidos): no se imprimen
+    if (process.env.NODE_ENV !== 'test') {
+        console.error(`[⚠️ Error]: ${err.message}`);
+    }
 
     // JSON mal formado en el cuerpo de la petición
     if (err.type === 'entity.parse.failed') {
