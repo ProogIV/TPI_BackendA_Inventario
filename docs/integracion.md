@@ -4,6 +4,9 @@ La especificación completa está en el `spec.md` del repositorio orquestador
 ([TPI_Ecommerce](https://github.com/ProogIV/TPI_Ecommerce)). Este archivo resume los puntos donde
 Inventario se comunica con Pedidos.
 
+Todas las llamadas entre servicios llevan el header `X-Service-Token` con la clave compartida
+`SERVICE_TOKEN` (spec.md, sección 7).
+
 ## 1. Pedidos consume a Inventario (flujo de compra)
 
 | Endpoint | Uso |

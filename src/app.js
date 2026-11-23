@@ -7,8 +7,13 @@ import { manejadorErrores, rutaNoEncontrada } from './middlewares/error.middlewa
 
 const app = express();
 
-// Middlewares de entrada y logging (en los tests no mostramos el log de cada petición)
-app.use(cors());
+// CORS: solo los orígenes configurados (el frontend) pueden leer las respuestas desde el navegador
+const origenesPermitidos = (process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:5500,http://127.0.0.1:5500')
+    .split(',')
+    .filter(Boolean);
+app.use(cors({ origin: origenesPermitidos }));
+
+// Logging de cada petición (en los tests no se muestra)
 if (process.env.NODE_ENV !== 'test') {
     app.use(morgan('dev'));
 }
