@@ -40,18 +40,26 @@ distinta de `MONGO_URI`.
 
 ## Endpoints
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | `/api/health` | Estado del servicio |
-| GET | `/api/proveedores?page=&limit=&search=` | Proveedores activos (paginado) |
-| GET / PUT / DELETE | `/api/proveedores/:id` | Ver, modificar, baja lógica |
-| POST | `/api/proveedores` | Crear proveedor |
-| GET | `/api/productos?page=&limit=&search=` | Catálogo de productos activos (paginado) |
-| GET | `/api/productos/:id` | Producto + pedidos recientes (respuesta degradada si Pedidos no responde) |
-| PUT / DELETE | `/api/productos/:id` | Modificar, baja lógica |
-| POST | `/api/productos` | Crear producto |
-| PATCH | `/api/productos/:id/descontar` | Descuento atómico de stock (uso interno de Pedidos) |
-| PATCH | `/api/productos/:id/reponer` | Reposición de stock tras un pago fallido (uso interno de Pedidos) |
+| Método | Ruta | Descripción | Acceso |
+|---|---|---|---|
+| GET | `/api/health` | Estado del servicio | Público |
+| GET | `/api/productos?page=&limit=&search=` | Catálogo de productos activos (paginado) | Público |
+| GET | `/api/productos/:id` | Producto + pedidos recientes (respuesta degradada si Pedidos no responde) | Público |
+| POST | `/api/productos` | Crear producto | ADMIN |
+| PUT / DELETE | `/api/productos/:id` | Modificar, baja lógica | ADMIN |
+| PATCH | `/api/productos/:id/descontar` | Descuento atómico de stock | Servicio (Pedidos) |
+| PATCH | `/api/productos/:id/reponer` | Reposición de stock tras un pago fallido | Servicio (Pedidos) |
+| GET / POST | `/api/proveedores` | Listar (paginado) y crear proveedores | ADMIN |
+| GET / PUT / DELETE | `/api/proveedores/:id` | Ver, modificar, baja lógica | ADMIN |
+
+## Seguridad
+
+- **ADMIN:** header `Authorization: Bearer <access>` con un token emitido por **Pedidos** (`POST /api/token/`).
+  Inventario no tiene login propio: valida el token con la misma clave (`JWT_SIGNING_KEY`, HS256) y lee el `rol`.
+- **Servicio:** `descontar` y `reponer` solo los usa Pedidos, con el header `X-Service-Token` (clave `SERVICE_TOKEN`, compartida entre ambos servicios). Inventario usa la misma clave al consultar los pedidos de un producto.
+- **CORS:** solo los orígenes de `CORS_ALLOWED_ORIGINS` (el frontend).
+
+`JWT_SIGNING_KEY` y `SERVICE_TOKEN` tienen que ser **iguales** en el `.env` de Inventario y en el de Pedidos.
 
 ## Estructura
 
@@ -64,7 +72,7 @@ src/
   repositories/       → consultas a la base
   controllers/        → lógica de cada endpoint
   routes/             → definición de rutas
-  middlewares/        → manejo centralizado de errores
+  middlewares/        → manejo centralizado de errores y autenticación (JWT, roles, X-Service-Token)
 tests/                → tests con Jest + Supertest
 docs/                 → contrato de integración y pautas del equipo
 ```

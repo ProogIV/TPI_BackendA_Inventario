@@ -49,6 +49,7 @@ export const obtenerFichaCompletaProducto = async (req, res, next) => {
             // Llamada servidor a servidor hacia Pedidos, con tiempo máximo de espera
             const urlPedidos = `${process.env.PEDIDOS_API_URL}/orders/?producto_id=${producto._id}`;
             const respuesta = await fetch(urlPedidos, {
+                headers: { 'X-Service-Token': process.env.SERVICE_TOKEN || '' }, // spec.md, sección 7
                 signal: AbortSignal.timeout(TIMEOUT_SERVICIOS_MS)
             });
 
