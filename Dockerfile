@@ -6,10 +6,10 @@ WORKDIR /app
 # Copiar package.json y package-lock.json para aprovechar la caché de capas
 COPY package*.json ./
 
-# Instalar dependencias del proyecto
-RUN npm install --production
+# Instalar solo las dependencias de producción, exactamente las del package-lock.json
+RUN npm ci --omit=dev
 
-# Copiar el código fuente
+# Copiar el código fuente (.dockerignore excluye node_modules, .env y tests)
 COPY . .
 
 # Puerto expuesto por el microservicio
