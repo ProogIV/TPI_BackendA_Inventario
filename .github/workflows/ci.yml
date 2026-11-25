@@ -1,0 +1,42 @@
+name: Continuous Integration - Inventario
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  test-inventario:
+    name: Test Inventario (Node.js)
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          # Este workflow corre dentro del repo de Inventario: no lleva prefijo de carpeta.
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Jest tests
+        env:
+          # Los tests borran colecciones: MONGO_URI_TEST debe ser distinta de MONGO_URI.
+          MONGO_URI: mongodb://localhost:27017/inventario_db
+          MONGO_URI_TEST: mongodb://localhost:27017/inventario_db_test
+          JWT_SIGNING_KEY: test_jwt_signing_key
+          SERVICE_TOKEN: test_service_token
+        run: npm test
