@@ -1,4 +1,4 @@
-name: Continuous Integration - E-commerce Microservices
+name: Continuous Integration - Inventario
 
 on:
   push:
@@ -7,9 +7,6 @@ on:
     branches: [ main, dev ]
 
 jobs:
-  # -------------------------------------------------------------
-  # Job 1: Pruebas del Backend A (Inventario - Node.js + Express)
-  # -------------------------------------------------------------
   test-inventario:
     name: Test Inventario (Node.js)
     runs-on: ubuntu-latest
@@ -29,18 +26,17 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: inventario/package-lock.json
+          # Este workflow corre dentro del repo de Inventario: no lleva prefijo de carpeta.
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: |
-          cd inventario
-          npm ci
+        run: npm ci
 
       - name: Run Jest tests
         env:
-          MONGO_URI: mongodb://localhost:27017/inventario_db_test
-          JWT_SECRET: test_jwt_secret
+          # Los tests borran colecciones: MONGO_URI_TEST debe ser distinta de MONGO_URI.
+          MONGO_URI: mongodb://localhost:27017/inventario_db
+          MONGO_URI_TEST: mongodb://localhost:27017/inventario_db_test
+          JWT_SIGNING_KEY: test_jwt_signing_key
           SERVICE_TOKEN: test_service_token
-        run: |
-          cd inventario
-          npm test
+        run: npm test
