@@ -25,6 +25,8 @@ npm run dev               # desarrollo, con reinicio automático (nodemon)
 npm start                 # producción
 ```
 
+Con `SEED_DATA=true` en el `.env`, al arrancar con la base vacía se cargan un proveedor y 4 productos de prueba (en Docker está activado).
+
 Verificar: `GET http://localhost:3000/api/health` → `{ "status": "ok", "service": "inventario" }`.
 
 El archivo `peticiones.http` tiene ejemplos de todas las peticiones (extensión REST Client de VS Code).
