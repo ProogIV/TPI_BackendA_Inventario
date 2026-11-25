@@ -1,0 +1,46 @@
+name: Continuous Integration - E-commerce Microservices
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  # -------------------------------------------------------------
+  # Job 1: Pruebas del Backend A (Inventario - Node.js + Express)
+  # -------------------------------------------------------------
+  test-inventario:
+    name: Test Inventario (Node.js)
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: inventario/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd inventario
+          npm ci
+
+      - name: Run Jest tests
+        env:
+          MONGO_URI: mongodb://localhost:27017/inventario_db_test
+          JWT_SECRET: test_jwt_secret
+          SERVICE_TOKEN: test_service_token
+        run: |
+          cd inventario
+          npm test
